@@ -100,9 +100,11 @@ void setup() {
 }
 
 void loop() {
-  // Read sensor and convert
-  cur_pos = convert_sensor_value(analogRead(sensor_pin));
+   // Read sensor and convert
+  int sensor_val = analogRead(sensor_pin); //reads sensor in analog (0-1023)
+  int cur_pos = map(sensor_val,0,1023,-25,25); //(maps sensor reading to a value between -25cm and 25, 0 is the middle)
   Serial.println(cur_pos);
+  cur_pos = cur_pos/100; // converts to meters 
 
   // PID on ball position
   double des_acceleration = calc_PID(pid, cur_pos, set_point, 1.0 / LOOP_RATE_HZ);
