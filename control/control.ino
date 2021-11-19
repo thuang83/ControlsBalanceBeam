@@ -1,4 +1,5 @@
 #include <Servo.h>
+#include <TinyMPU6050.h>
 
 // calibration - I accidentally did this in inches
 #define A_ -0.02
@@ -9,13 +10,13 @@
 #define R 0.015875          // radius of ball in meters
 #define G 9.8               // meters / second
 #define I 2/5*M*R*R         // moment of inertia of ball in kg*m^2
-
+      
 // geometric parameters
 #define L_A1 0.162            // meters, distance from motor axis to center hinge axis
 #define L_B1 0.0279           // length of first motor linkage
 #define L_A2 0.161            // distance from center hinge axis to small hinge axis
-#define L_B2 0.0625           // length of second motor linkage
-#define D_H 0.0602            // height of beam obove motor when it is parallel to the ground
+#define L_B2 0.09           // length of second motor linkage
+#define D_H 0.09            // height of beam obove motor when it is parallel to the ground
 #define PHI_0 asin(D_H/L_A1)  // angle between beam and line connecting motor and center hinge axes when level
                               // TODO: find this with calibration instead? Or use an accelerometer to sense it continuously?
 
@@ -25,6 +26,8 @@
 #define MAX_MOTOR_ANGLE 127
 #define MAX_BEAM_ANGLE 15*M_PI/180
 
+// MPU
+MPU6050 mpu(Wire);
 /////////////
 // structs //
 /////////////
@@ -44,13 +47,21 @@ double set_point = 0;
 double cur_pos = 0.0;
 double beam_angle = 0.0;
 double beam_angular_velocity = 0.0;
-
+double prev_beam_angular_velocity = 0.0;
+double alpha = 0.2;
+double beam_velocity_offset;
 PID_struct pid = {0.1, 0.1, 0, 0, 0, -50, 50};
 Servo s1;
 
 //////////////////////
 // Helper Functions //
 //////////////////////
+
+// beam angle conversion
+double beam_angle_conversion(double des_acceleration, double cur_pos, double beam_angular_acceleration) {
+  double a = asin((I/R/R+M)*des_acceleration + M*cur_pos*beam_angular_acceleration*beam_angular_acceleration);
+  return a;
+}
 // helper for calculating output using PID
 double calc_PID(PID_struct& pid, double y, double r, double dt) {
   double cur_error = r - y;
@@ -97,20 +108,33 @@ void setup() {
   while (!Serial);
   s1.attach(servo_pin);
   s1.write(90);
-}
 
+  //initialize mpu
+  mpu.Initialize();
+  Serial.println("Starting IMU Calibration");
+  mpu.Calibrate();
+  Serial.println("Finished Calibration");
+  mpu.Execute();
+  
+  double beam_velocity_offset= -mpu.GetGyroZ()*0.0174533;
+}
 void loop() {
   // Read sensor and convert
   cur_pos = convert_sensor_value(analogRead(sensor_pin));
-  Serial.println(cur_pos);
+  // Read from imu
+  mpu.Execute();
+  double measurement = -mpu.GetGyroZ()*0.0174533- beam_velocity_offset; //read data and convert from degrees/s to radians/s
+  //beam_angular_velocity = (alpha*measurement) + (1 - alpha*prev_beam_angular_velocity);
+  //Serial.println(beam_angular_velocity);
+  Serial.println(measurement);
+  prev_beam_angular_velocity = beam_angular_velocity;
+
+  //Serial.println(cur_pos);
 
   // PID on ball position
   double des_acceleration = calc_PID(pid, cur_pos, set_point, 1.0 / LOOP_RATE_HZ);
 
-  // convert to beam angle using input linearization - not able to sense or calculate beam_angular_velocity well, so not using it at all
-  beam_angular_velocity = 0.0;
-  double beam_angle = input_linearization(des_acceleration, cur_pos, beam_angular_velocity);
-  beam_angle = min(max(beam_angle, -MAX_BEAM_ANGLE), MAX_BEAM_ANGLE);
+  double beam_angle = beam_angle_conversion(des_acceleration, cur_pos, beam_angular_velocity);
 
   // convert to motor angle using law of cosines relationship
   double motor_angle = convert_to_motor_angle(beam_angle);
