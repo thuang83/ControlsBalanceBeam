@@ -1,9 +1,5 @@
 #include <Servo.h>
 
-// calibration - I accidentally did this in inches
-#define A_ -0.02
-#define B_ 9.33
-
 // model parameters
 #define M 0.131552          // mass of ball in kg
 #define R 0.015875          // radius of ball in meters
@@ -68,11 +64,6 @@ double calc_PID(PID_struct& pid, double y, double r, double dt) {
   return min(max(out, pid.min_output), pid.max_output);
 }
 
-// uses previously found calibration curve to convert from voltage to distance from hinge
-double convert_sensor_value(int val) {
-  return A_*val + B_;
-}
-
 // very bad input linearization - do not use unless we can sense beam angular velocity directly
 double input_linearization(double des_acceleration, double cur_pos, double beam_angular_velocity) {
   double temp = (M*0.0254*cur_pos*pow(beam_angular_velocity, 2) - (M+pow(R,2)*I)*des_acceleration) / (M*G);
@@ -101,10 +92,10 @@ void setup() {
 
 void loop() {
    // Read sensor and convert
-  int sensor_val = analogRead(sensor_pin); //reads sensor in analog (0-1023)
-  int cur_pos = map(sensor_val,0,1023,-25,25); //(maps sensor reading to a value between -25cm and 25, 0 is the middle)
-  Serial.println(cur_pos);
-  cur_pos = cur_pos/100; // converts to meters 
+  int sensor_val = analogRead(sensor_pin);
+  double cur_pos = map(sensor_val,0,1023,-25,25);
+  cur_pos = cur_pos/100.00;
+   Serial.println(cur_pos); 
 
   // PID on ball position
   double des_acceleration = calc_PID(pid, cur_pos, set_point, 1.0 / LOOP_RATE_HZ);
