@@ -15,7 +15,6 @@ class CircBuff {
 
       buffer_full |= (index > 0 && (index + 1) % n == 0);
       index = (index + 1) % n;
-      Serial.println(index);
       sum -= buff[index];
     }
 
