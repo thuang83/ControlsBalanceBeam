@@ -61,7 +61,7 @@ Servo s1;
 
 //beam angle conversion
 double beam_angle_conversion(double des_acceleration, double cur_pos, double beam_angular_velocity) {
-  double temp = (M*(cur_pos*0.0254)*pow(beam_angular_velocity,2) - (I/R/R+M)*des_acceleration)/(M*G);
+  double temp = (M*(cur_pos*0.0254-0.1651)*pow(beam_angular_velocity,2) - (I/R/R+M)*des_acceleration)/(M*G);
   double a = asin(max(min(temp, 1.0), -1.0));
   return a;
 }
