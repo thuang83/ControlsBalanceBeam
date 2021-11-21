@@ -14,7 +14,7 @@ void handle_input(int val) {
   memset(buff, 0, 32);
   int buff_index = 0;
 
-  while (Serial.available())
+  while (Serial.available()) 
     buff[buff_index++] = Serial.read();
 
   calibration_values[i++] = atof(buff);
