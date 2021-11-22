@@ -12,10 +12,10 @@
 #define I 2/5*M*R*R         // moment of inertia of ball in kg*m^2
       
 // geometric parameters
-#define L_A1 0.162            // meters, distance from motor axis to center hinge axis
-#define L_B1 0.0279           // length of first motor linkage
-#define L_A2 0.161            // distance from center hinge axis to small hinge axis
-#define L_B2 0.09           // length of second motor linkage
+#define L_A1 0.12 //0.162            // meters, distance from motor axis to center hinge axis
+#define L_B1 0.08   //0.0279           // length of first motor linkage
+#define L_A2 0.17 //0.161            // distance from center hinge axis to small hinge axis
+#define L_B2 0.095           // length of second motor linkage
 #define D_H 0.09            // height of beam obove motor when it is parallel to the ground
 #define PHI_0 asin(D_H/L_A1)  // angle between beam and line connecting motor and center hinge axes when level
                               // TODO: find this with calibration instead? Or use an accelerometer to sense it continuously?
@@ -43,7 +43,7 @@ struct PID_struct {
 
 int sensor_pin = 14;
 int servo_pin = 15;
-double set_point = 0;
+double set_point = -5;
 double cur_pos = 0.0;
 double beam_angle = 0.0;
 double beam_angular_velocity = 0.0;
@@ -58,9 +58,12 @@ Servo s1;
 //////////////////////
 
 // beam angle conversion
-double beam_angle_conversion(double des_acceleration, double cur_pos, double beam_angular_acceleration) {
-  double a = asin((I/R/R+M)*des_acceleration + M*cur_pos*beam_angular_acceleration*beam_angular_acceleration);
-  return a;
+double beam_angle_conversion(double des_acceleration, double cur_pos, double beam_angular_velocity) {
+  double a = (M*0.0254*cur_pos*pow(beam_angular_velocity, 2) - (M+I/pow(R,2))*des_acceleration) / (M*G);
+  //double a = asin((I/R/R+M)*des_acceleration + M*cur_pos*beam_angular_acceleration*beam_angular_acceleration);
+  double temp = asin(a);
+  //Serial.println(temp);
+  return temp;
 }
 // helper for calculating output using PID
 double calc_PID(PID_struct& pid, double y, double r, double dt) {
@@ -120,16 +123,16 @@ void setup() {
 }
 void loop() {
   // Read sensor and convert
-  cur_pos = convert_sensor_value(analogRead(sensor_pin));
+  cur_pos = convert_sensor_value(analogRead(sensor_pin)) + .5;
   // Read from imu
   mpu.Execute();
   double measurement = -mpu.GetGyroZ()*0.0174533- beam_velocity_offset; //read data and convert from degrees/s to radians/s
   //beam_angular_velocity = (alpha*measurement) + (1 - alpha*prev_beam_angular_velocity);
   //Serial.println(beam_angular_velocity);
-  Serial.println(measurement);
+  //Serial.println(measurement);
   prev_beam_angular_velocity = beam_angular_velocity;
 
-  //Serial.println(cur_pos);
+  Serial.println(cur_pos);
 
   // PID on ball position
   double des_acceleration = calc_PID(pid, cur_pos, set_point, 1.0 / LOOP_RATE_HZ);
