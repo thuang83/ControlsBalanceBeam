@@ -2,6 +2,8 @@
 #include "circbuff.h"
 #include <TinyMPU6050.h>
 
+const int ledPin = 13;
+
 // calibration - I accidentally did this in inches
 #define A_ -0.02
 #define B_ 9.33
@@ -42,11 +44,13 @@ struct PID_struct {
 
 int sensor_pin = 14;
 int servo_pin = 15;
-double set_point = -5;
+double set_point = 2;
+double reference = set_point;
 double cur_pos = 0.0;
 double prev_pos = 0.0;
 double beam_angle = 0.0;
 double beam_angular_velocity = 0.0;
+int i = 0;
 
 CircBuff<LOOP_RATE_HZ * 5> circbuff;
 double beam_angle_offset = 0;
@@ -56,6 +60,7 @@ double prev_beam_angular_velocity = 0.0;
 double alpha = 0.2;
 double beam_velocity_offset;
 PID_struct pid = {0.1, 0.1, 0, 0, 0, -50, 50};
+double Ki = 1.5;
 Servo s1;
 
 //////////////////////
@@ -117,27 +122,35 @@ void setup() {
   s1.attach(servo_pin);
   s1.write(90);
 
+  pinMode(ledPin, OUTPUT);
+
   //initialize mpu
   mpu.Initialize();
   Serial.println("Starting IMU Calibration");
-  mpu.Calibrate();
+  //mpu.Calibrate();
   Serial.println("Finished Calibration");
   mpu.Execute();
   
   double beam_velocity_offset= -mpu.GetGyroZ()*0.0174533;
 }
 void loop() {
-  // Read sensor and convert
-  cur_pos = convert_sensor_value(analogRead(sensor_pin)) + .5;
+  // Read sensor and convert - discard values that are too different from last value
+  cur_pos = convert_sensor_value(analogRead(sensor_pin));
+  //if (abs(cur_pos - prev_pos) > 9) {
+  //  cur_pos = prev_pos;
+  //} else {
+  //  prev_pos = cur_pos;
+  //}
+  
   // Read from imu
   mpu.Execute();
-  double measurement = -mpu.GetGyroZ()*0.0174533- beam_velocity_offset; //read data and convert from degrees/s to radians/s
-  //beam_angular_velocity = (alpha*measurement) + (1 - alpha*prev_beam_angular_velocity);
+  double measurement = -mpu.GetGyroZ()*0.0174533; //- beam_velocity_offset; //read data and convert from degrees/s to radians/s
+  beam_angular_velocity = (alpha*measurement) + (1 - alpha*prev_beam_angular_velocity);
   //Serial.println(beam_angular_velocity);
   //Serial.println(measurement);
   prev_beam_angular_velocity = beam_angular_velocity;
 
-  Serial.println(cur_pos);
+  Serial.print(cur_pos);
 
   // 5 second moving average of velocity
   circbuff.addSample((cur_pos - prev_pos) * LOOP_RATE_HZ);
@@ -147,10 +160,19 @@ void loop() {
   if (!beam_angle_offset_known && !isnan(vel_avg) && vel_avg < 0.01) {
     beam_angle_offset = beam_angle;
     beam_angle_offset_known = true;
+    digitalWrite(ledPin, HIGH);
   }
-
-  // PID on ball position
-  double des_acceleration = calc_PID(pid, cur_pos, set_point, 1.0 / LOOP_RATE_HZ);
+  
+  // PID on ball position with integral control
+  if (beam_angle_offset_known && abs(cur_pos) < 9.1) {
+    //set_point = 5.0*(sin(float(i++) / (2*LOOP_RATE_HZ));
+    //set_point = (i++ % (6*LOOP_RATE_HZ) < 3*LOOP_RATE_HZ) ? -3 : 3;
+    //set_point = 5  * float(i++ % (7*LOOP_RATE_HZ)) / (7*LOOP_RATE_HZ) - 2.5; 
+    //reference += Ki * (set_point - cur_pos) / LOOP_RATE_HZ;
+  }
+  Serial.print(',');
+  Serial.println(set_point);
+  double des_acceleration = calc_PID(pid, cur_pos, reference, 1.0 / LOOP_RATE_HZ);
 
   double beam_angle = beam_angle_conversion(des_acceleration, cur_pos, beam_angular_velocity) + beam_angle_offset;
   beam_angle = min(max(beam_angle, -MAX_BEAM_ANGLE), MAX_BEAM_ANGLE);
