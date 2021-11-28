@@ -165,11 +165,21 @@ void loop() {
   
   // PID on ball position with integral control
   if (beam_angle_offset_known && abs(cur_pos) < 9.1) {
-    //set_point = 5.0*(sin(float(i++) / (2*LOOP_RATE_HZ));
+    //set_point = 5.0*(sin(float(i++) / (1*LOOP_RATE_HZ)));
     //set_point = (i++ % (6*LOOP_RATE_HZ) < 3*LOOP_RATE_HZ) ? -3 : 3;
     //set_point = 5  * float(i++ % (7*LOOP_RATE_HZ)) / (7*LOOP_RATE_HZ) - 2.5; 
-    //reference += Ki * (set_point - cur_pos) / LOOP_RATE_HZ;
+    
+
+    //Trajectory following sine function with amplitude of 5
+    float t = float(i++);
+    float w = 1/(2*LOOP_RATE_HZ);
+    float A = 5.0; //amplitude
+    float B = 1/(pid.Kp*pid.Kp + w*w*pid.Kd*pid.Kd);//constant term
+    float C = A*w*(M+I/R/R)/M/G; //constant term
+    set_point = B*C*(-pid.Kp*exp(-pid.Kp*t/pid.Kd) + pid.Kp*cos(w*t)+ (w/pid.Kd)*sin(w*t));
+    reference += Ki * (set_point - cur_pos) / LOOP_RATE_HZ;
   }
+  
   Serial.print(',');
   Serial.println(set_point);
   double des_acceleration = calc_PID(pid, cur_pos, reference, 1.0 / LOOP_RATE_HZ);
