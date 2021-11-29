@@ -169,15 +169,16 @@ void loop() {
     //set_point = (i++ % (6*LOOP_RATE_HZ) < 3*LOOP_RATE_HZ) ? -3 : 3;
     //set_point = 5  * float(i++ % (7*LOOP_RATE_HZ)) / (7*LOOP_RATE_HZ) - 2.5; 
     
-
     //Trajectory following sine function with amplitude of 5
-    float t = float(i++);
-    float w = 1/(2*LOOP_RATE_HZ);
+    float t = float(i++)/LOOP_RATE_HZ;
+    float w = 1;
     float A = 5.0; //amplitude
     float B = 1/(pid.Kp*pid.Kp + w*w*pid.Kd*pid.Kd);//constant term
     float C = A*w*(M+I/R/R)/M/G; //constant term
-    set_point = B*C*(-pid.Kp*exp(-pid.Kp*t/pid.Kd) + pid.Kp*cos(w*t)+ (w/pid.Kd)*sin(w*t));
-    reference += Ki * (set_point - cur_pos) / LOOP_RATE_HZ;
+    //set_point = B*C*(-pid.Kp*exp(-pid.Kp*t/pid.Kd) + pid.Kp*cos(w*t)+ (w/pid.Kd)*sin(w*t));
+    set_point = 3.5714285714285708903428966160951*exp(-1.0*t) + 3.5714285714285708903428966160951*cos(t) + 1.4285714285714291096571033839049*sin(t);
+    //reference += Ki * (set_point - cur_pos) / LOOP_RATE_HZ;
+    reference = set_point;
   }
   
   Serial.print(',');
