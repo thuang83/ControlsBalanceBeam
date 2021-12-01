@@ -178,19 +178,17 @@ void loop() {
     
     //Trajectory following sine function with amplitude of 5
     float t = float(i++)/LOOP_RATE_HZ;
-    float w = 1;
-    float A = 5.0; //amplitude
-    float B = 1/(pid.Kp*pid.Kp + w*w*pid.Kd*pid.Kd);//constant term
-    float C = A*w*(M+I/R/R)/M/G; //constant term
-    //set_point = B*C*(-pid.Kp*exp(-pid.Kp*t/pid.Kd) + pid.Kp*cos(w*t)+ (w/pid.Kd)*sin(w*t));
-    //set_point = 3.5714285714285708903428966160951*exp(-1.0*t) + 3.5714285714285708903428966160951*cos(t) + 1.4285714285714291096571033839049*sin(t);
+    //SINE WAVE
     set_point =0.001428571428571428356137158646438*exp(-1.0*t) + 0.001428571428571428356137158646438*cos(t) + 0.098571428571428571643862841353562*sin(t);
 
+    //SQUARE WAVE
+    //set_point =0.00097819390666487107280782538371357*exp(-1.0*t) + 0.0095023279376032378152487858512162*cos(t) + 0.040549058984334286053335406372881*sin(t) - 0.31849922402079887225180062660589*pow(cos(t),3) + 2.8647503879896001081452371094771*pow(cos(t),5) - 10.912297378863578973646155331646*pow(cos(t),7) + 20.002968090074891397456023953587*pow(cos(t),9) - 17.454410800385725431267157528298*pow(cos(t),11) + 5.817008403361343661168755922776*pow(cos(t),13) - 0.14997430653903123806570790388795*pow(cos(t),2)*sin(t) + 2.6078944640905268533877689154326*pow(cos(t),4)*sin(t) - 14.149296215259627604152653052227*pow(cos(t),6)*sin(t) + 34.255328639289878474660659162846*pow(cos(t),8)*sin(t) - 37.56990741563162023305980435808*pow(cos(t),10)*sin(t) + 15.306383968972204333756249544402*pow(cos(t),12)*sin(t);
 
     //reference += Ki * (set_point - cur_pos) / LOOP_RATE_HZ;
     reference = set_point;
     Serial.print(',');
     Serial.println(10*sin(t));
+    //Serial.println(5*(sin(t) + sin(3*t)/3 + sin(5*t)/5 + sin(7*t)/7 + sin(9*t)/9 + sin(11*t)/11 + sin(13*t)/13));
   }
   
   
