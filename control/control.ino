@@ -44,7 +44,7 @@ struct PID_struct {
 
 int sensor_pin = 14;
 int servo_pin = 15;
-double set_point = 2;
+double set_point = -5;
 double reference = set_point;
 double cur_pos = 0.0;
 double prev_pos = 0.0;
@@ -60,7 +60,7 @@ double prev_beam_angular_velocity = 0.0;
 double alpha = 0.2;
 double beam_velocity_offset;
 PID_struct pid = {0.1, 0.1, 0, 0, 0, -50, 50};
-double Ki = 1.5;
+double Ki = 1;
 Servo s1;
 
 //////////////////////
@@ -70,7 +70,13 @@ Servo s1;
 // beam angle conversion
 double beam_angle_conversion(double des_acceleration, double cur_pos, double beam_angular_velocity) {
   double a = (M*0.0254*cur_pos*pow(beam_angular_velocity, 2) - (M+I/pow(R,2))*des_acceleration) / (M*G);
+  
   //double a = asin((I/R/R+M)*des_acceleration + M*cur_pos*beam_angular_acceleration*beam_angular_acceleration);
+  //Serial.print(cur_pos);
+  //Serial.print(",");
+  //Serial.print(beam_angular_velocity);
+  //Serial.print(",");
+  //Serial.println(des_acceleration);
   double temp = asin(a);
   //Serial.println(temp);
   return temp;
@@ -136,11 +142,6 @@ void setup() {
 void loop() {
   // Read sensor and convert - discard values that are too different from last value
   cur_pos = convert_sensor_value(analogRead(sensor_pin));
-  //if (abs(cur_pos - prev_pos) > 9) {
-  //  cur_pos = prev_pos;
-  //} else {
-  //  prev_pos = cur_pos;
-  //}
   
   // Read from imu
   mpu.Execute();
@@ -154,16 +155,22 @@ void loop() {
 
   // 5 second moving average of velocity
   circbuff.addSample((cur_pos - prev_pos) * LOOP_RATE_HZ);
+  if (abs(cur_pos - prev_pos) > 9) {
+      cur_pos = prev_pos;
+  }else {
+  prev_pos = cur_pos;
+  }
   double vel_avg = circbuff.getAverage();
-
+  //Serial.print(", vel_avg:");
+  //Serial.print(vel_avg);
   // when ball has reached an equilibrium point and stopped moving for 5 seconds, update beam_angle_offset
-  if (!beam_angle_offset_known && !isnan(vel_avg) && vel_avg < 0.01) {
+  if (!beam_angle_offset_known && !isnan(vel_avg) && vel_avg < 0.02) {
     beam_angle_offset = beam_angle;
     beam_angle_offset_known = true;
     digitalWrite(ledPin, HIGH);
   }
   
-  // PID on ball position with integral control
+  //Trajectory Tracking
   if (beam_angle_offset_known && abs(cur_pos) < 9.1) {
     //set_point = 5.0*(sin(float(i++) / (1*LOOP_RATE_HZ)));
     //set_point = (i++ % (6*LOOP_RATE_HZ) < 3*LOOP_RATE_HZ) ? -3 : 3;
@@ -177,15 +184,22 @@ void loop() {
     float C = A*w*(M+I/R/R)/M/G; //constant term
     //set_point = B*C*(-pid.Kp*exp(-pid.Kp*t/pid.Kd) + pid.Kp*cos(w*t)+ (w/pid.Kd)*sin(w*t));
     set_point = 3.5714285714285708903428966160951*exp(-1.0*t) + 3.5714285714285708903428966160951*cos(t) + 1.4285714285714291096571033839049*sin(t);
+    //set_point = 4.9999999999999992464800552625331*exp(-1.0*t) + 4.9999999999999992464800552625331*cos(t) + 2.0000000000000007535199447374669*sin(t);
+
     //reference += Ki * (set_point - cur_pos) / LOOP_RATE_HZ;
-    reference = set_point;
+    reference = 5.0*sin(t);
   }
   
+  
+  // PID on ball position with integral control
+  //reference += Ki * (set_point - cur_pos) / LOOP_RATE_HZ;
+  
   Serial.print(',');
-  Serial.println(set_point);
-  double des_acceleration = calc_PID(pid, cur_pos, reference, 1.0 / LOOP_RATE_HZ);
+  Serial.println(reference);
 
-  double beam_angle = beam_angle_conversion(des_acceleration, cur_pos, beam_angular_velocity) + beam_angle_offset;
+  double des_acceleration = calc_PID(pid, cur_pos, set_point, 1.0 / LOOP_RATE_HZ);
+
+  beam_angle = beam_angle_conversion(des_acceleration, cur_pos, beam_angular_velocity) + beam_angle_offset;
   beam_angle = min(max(beam_angle, -MAX_BEAM_ANGLE), MAX_BEAM_ANGLE);
 
   // convert to motor angle using law of cosines relationship
