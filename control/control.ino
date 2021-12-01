@@ -6,7 +6,7 @@ const int ledPin = 13;
 
 // calibration - I accidentally did this in inches
 #define A_ -0.02
-#define B_ 9.33
+#define B_ 500
 
 // model parameters
 #define M 0.131552          // mass of ball in kg
@@ -44,7 +44,7 @@ struct PID_struct {
 
 int sensor_pin = 14;
 int servo_pin = 15;
-double set_point = -5;
+double set_point = .125;
 double reference = set_point;
 double cur_pos = 0.0;
 double prev_pos = 0.0;
@@ -59,8 +59,8 @@ bool beam_angle_offset_known = false;
 double prev_beam_angular_velocity = 0.0;
 double alpha = 0.2;
 double beam_velocity_offset;
-PID_struct pid = {0.1, 0.1, 0, 0, 0, -50, 50};
-double Ki = 1;
+PID_struct pid = {5, 5, 0, 0, 0, -50, 50};
+double Ki = 0.75;
 Servo s1;
 
 //////////////////////
@@ -69,7 +69,7 @@ Servo s1;
 
 // beam angle conversion
 double beam_angle_conversion(double des_acceleration, double cur_pos, double beam_angular_velocity) {
-  double a = (M*0.0254*cur_pos*pow(beam_angular_velocity, 2) - (M+I/pow(R,2))*des_acceleration) / (M*G);
+  double a = (M*cur_pos*pow(beam_angular_velocity, 2) - (M+I/pow(R,2))*des_acceleration) / (M*G);
   
   //double a = asin((I/R/R+M)*des_acceleration + M*cur_pos*beam_angular_acceleration*beam_angular_acceleration);
   //Serial.print(cur_pos);
@@ -100,12 +100,12 @@ double calc_PID(PID_struct& pid, double y, double r, double dt) {
 
 // uses previously found calibration curve to convert from voltage to distance from hinge
 double convert_sensor_value(int val) {
-  return A_*val + B_;
+  return -(0.5*val/(1023-15) -.25);
 }
 
 // very bad input linearization - do not use unless we can sense beam angular velocity directly
 double input_linearization(double des_acceleration, double cur_pos, double beam_angular_velocity) {
-  double temp = (M*0.0254*cur_pos*pow(beam_angular_velocity, 2) - (M+pow(R,2)*I)*des_acceleration) / (M*G);
+  double temp = (M*cur_pos*pow(beam_angular_velocity, 2) - (M+pow(R,2)*I)*des_acceleration) / (M*G);
   return asin(max(min(temp, 1.0), -1.0));
 }
 
@@ -151,11 +151,11 @@ void loop() {
   //Serial.println(measurement);
   prev_beam_angular_velocity = beam_angular_velocity;
 
-  Serial.print(cur_pos);
+  Serial.print(cur_pos*100);
 
   // 5 second moving average of velocity
   circbuff.addSample((cur_pos - prev_pos) * LOOP_RATE_HZ);
-  if (abs(cur_pos - prev_pos) > 9) {
+  if (abs(cur_pos - prev_pos) > 0.19){
       cur_pos = prev_pos;
   }else {
   prev_pos = cur_pos;
@@ -183,21 +183,27 @@ void loop() {
     float B = 1/(pid.Kp*pid.Kp + w*w*pid.Kd*pid.Kd);//constant term
     float C = A*w*(M+I/R/R)/M/G; //constant term
     //set_point = B*C*(-pid.Kp*exp(-pid.Kp*t/pid.Kd) + pid.Kp*cos(w*t)+ (w/pid.Kd)*sin(w*t));
-    set_point = 3.5714285714285708903428966160951*exp(-1.0*t) + 3.5714285714285708903428966160951*cos(t) + 1.4285714285714291096571033839049*sin(t);
-    //set_point = 4.9999999999999992464800552625331*exp(-1.0*t) + 4.9999999999999992464800552625331*cos(t) + 2.0000000000000007535199447374669*sin(t);
+    //set_point = 3.5714285714285708903428966160951*exp(-1.0*t) + 3.5714285714285708903428966160951*cos(t) + 1.4285714285714291096571033839049*sin(t);
+    set_point =0.001428571428571428356137158646438*exp(-1.0*t) + 0.001428571428571428356137158646438*cos(t) + 0.098571428571428571643862841353562*sin(t);
+
 
     //reference += Ki * (set_point - cur_pos) / LOOP_RATE_HZ;
-    reference = 5.0*sin(t);
+    reference = set_point;
+    Serial.print(',');
+    Serial.println(10*sin(t));
   }
   
   
   // PID on ball position with integral control
-  //reference += Ki * (set_point - cur_pos) / LOOP_RATE_HZ;
-  
-  Serial.print(',');
-  Serial.println(reference);
+  /*if (beam_angle_offset_known){
+    reference += Ki * (set_point - cur_pos) / LOOP_RATE_HZ;
+  }
+  */
+  //Serial.print(',');
+  //Serial.print(beam_angular_velocity*10);
 
-  double des_acceleration = calc_PID(pid, cur_pos, set_point, 1.0 / LOOP_RATE_HZ);
+
+  double des_acceleration = calc_PID(pid, cur_pos, reference, 1.0 / LOOP_RATE_HZ);
 
   beam_angle = beam_angle_conversion(des_acceleration, cur_pos, beam_angular_velocity) + beam_angle_offset;
   beam_angle = min(max(beam_angle, -MAX_BEAM_ANGLE), MAX_BEAM_ANGLE);

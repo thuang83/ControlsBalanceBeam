@@ -1,6 +1,6 @@
 #include <ArduinoEigenDense.h>
 
-#define NUM_SAMPLES 5
+#define NUM_SAMPLES 3
 
 int sensorPin = 14;
 int i = 0;
